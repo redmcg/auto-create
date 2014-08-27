@@ -1,6 +1,6 @@
-This is a script I discovered on GitHub which creates VMs on a VMWare ESX server.
+This is a script I discovered on GitHub which creates VMs on a VMWare ESX server. Special thanks goes to Tamas Piros who created the inital script.
 
-I have just updated to work with the latest ESXi servers (ESXi version 5.5). I have also changed to defaults to suit my preference.
+I have just updated it to work with the latest ESXi servers (ESXi version 5.5). I have also changed to defaults to suit my preference.
 
 Automatic Virtual Machine creation on an ESXi server
 
