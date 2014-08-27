@@ -4,19 +4,28 @@
 #default params: CPU: 2, RAM: 4096, DISKSIZE: 20GB, ISO: 'blank'
 
 phelp() {
-	echo "Script for automatic Virtual Machine creation for ESX"
+	echo "Script for automatic Virtual Machine creation for ESXi"
 	echo "Usage: ./create.sh options: n <|c|i|r|s>"
 	echo "Where n: Name of VM (required), c: Number of virtual CPUs, i: location of an ISO image, r: RAM size in MB, s: Disk size in GB"
 	echo "Default values are: CPU: 2, RAM: 4096MB, HDD-SIZE: 20GB"
 }
 
 #Setting up some of the default variables
-CPU=2
-RAM=4096
-SIZE=20
+CPU=1
+RAM=2048
+SIZE=16
 ISO=""
 FLAG=true
 ERR=false
+
+
+#TODO make these configurable
+DATASTORE="datastore1/"
+VMPATH="/vmfs/volumes/${DATASTORE}"
+ISOPATH="${VMPATH}isos/"
+GUESTOS="centos-64"
+ETHVIRTDEV="vmxnet3"
+NETWORKNAME="VM Network"
 
 #Error checking will take place as well
 #the NAME has to be filled out (i.e. the $NAME variable needs to exist)
@@ -52,6 +61,8 @@ do
 					if [ ! `echo "$ISO" | egrep "^.*\.(iso)$"` ]; then
 						ERR=true
 						MSG="$MSG | The extension should be .iso"
+					else
+						ISO=${ISOPATH}${ISO}
 					fi
 					;;
                 r)
@@ -110,24 +121,12 @@ touch $NAME/$NAME.vmx
 
 #writing information into the configuration file
 cat << EOF > $NAME/$NAME.vmx
-
+.encoding = "UTF-8"
 config.version = "8"
-virtualHW.version = "7"
-vmci0.present = "TRUE"
-displayName = "${NAME}"
-floppy0.present = "FALSE"
-numvcpus = "${CPU}"
-scsi0.present = "TRUE"
-scsi0.sharedBus = "none"
-scsi0.virtualDev = "lsilogic"
-memsize = "${RAM}"
-scsi0:0.present = "TRUE"
-scsi0:0.fileName = "${NAME}.vmdk"
-scsi0:0.deviceType = "scsi-hardDisk"
-ide1:0.present = "TRUE"
-ide1:0.fileName = "${ISO}"
-ide1:0.deviceType = "cdrom-image"
+virtualHW.version = "8"
+nvram = "${NAME}.nvram"
 pciBridge0.present = "TRUE"
+svga.present = "TRUE"
 pciBridge4.present = "TRUE"
 pciBridge4.virtualDev = "pcieRootPort"
 pciBridge4.functions = "8"
@@ -140,16 +139,41 @@ pciBridge6.functions = "8"
 pciBridge7.present = "TRUE"
 pciBridge7.virtualDev = "pcieRootPort"
 pciBridge7.functions = "8"
-ethernet0.pciSlotNumber = "32"
+vmci0.present = "TRUE"
+displayName = "${NAME}"
+memSize = "${RAM}"
+scsi0.virtualDev = "lsilogic"
+scsi0.present = "TRUE"
+ide1:0.deviceType = "cdrom-image"
+ide1:0.fileName = "${ISO}"
+ide1:0.present = "TRUE"
+ethernet0.virtualDev = "${ETHVIRTDEV}"
+ethernet0.networkName = "${NETWORKNAME}"
+ethernet0.addressType = "generated"
 ethernet0.present = "TRUE"
-ethernet0.virtualDev = "e1000"
-ethernet0.networkName = "Inside"
-ethernet0.generatedAddressOffset = "0"
-guestOS = "other26xlinux-64"
+scsi0:0.deviceType = "scsi-hardDisk"
+scsi0:0.fileName = "${NAME}.vmdk"
+scsi0:0.present = "TRUE"
+guestOS = "${GUESTOS}"
+numvcpus = "${CPU}"
+toolScripts.afterPowerOn = "TRUE"
+toolScripts.afterResume = "TRUE"
+toolScripts.beforeSuspend = "TRUE"
+toolScripts.beforePowerOff = "TRUE"
+floppy0.present = "FALSE"
 EOF
 
 #Adding Virtual Machine to VM register - modify your path accordingly!!
-MYVM=`vim-cmd solo/registervm /vmfs/volumes/datastore1/${NAME}/${NAME}.vmx`
+MYVM=`vim-cmd solo/registervm ${VMPATH}${NAME}/${NAME}.vmx`
+
+VNCPORT=`printf %02d $MYVM`
+
+# add VNC port (TODO - make this configurable)
+cat << EOF >> $NAME/$NAME.vmx
+RemoteDisplay.vnc.enabled = "TRUE"
+RemoteDisplay.vnc.port = "59$VNCPORT"
+EOF
+
 #Powering up virtual machine:
 vim-cmd vmsvc/power.on $MYVM
 
