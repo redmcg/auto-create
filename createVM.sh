@@ -1,13 +1,13 @@
 #!/bin/sh
 
-#paratmers: machine name (required), CPU (number of cores), RAM (memory size in MB), HDD Disk size (in GB), ISO (Location of ISO image, optional)
-#default params: CPU: 2, RAM: 4096, DISKSIZE: 20GB, ISO: 'blank'
+#paratmers: machine name (required), CPU (number of cores), RAM (memory size in MB), HDD Disk size (in GB), ISO (Location of ISO image, optional), NETWORKNAME (Network to join)
+#default params: CPU: 1, RAM: 2048, DISKSIZE: 16GB, ISO: 'blank', NETWORK: 'VM Network'
 
 phelp() {
 	echo "Script for automatic Virtual Machine creation for ESXi"
-	echo "Usage: ./create.sh options: n <|c|i|r|s>"
-	echo "Where n: Name of VM (required), c: Number of virtual CPUs, i: location of an ISO image, r: RAM size in MB, s: Disk size in GB"
-	echo "Default values are: CPU: 2, RAM: 4096MB, HDD-SIZE: 20GB"
+	echo "Usage: ./create.sh options: n <|c|i|r|s|w>"
+	echo "Where n: Name of VM (required), c: Number of virtual CPUs, i: location of an ISO image, r: RAM size in MB, s: Disk size in GB, w: Network Name"
+	echo "Default values are: CPU: 1, RAM: 2048MB, HDD-SIZE: 16GB"
 }
 
 #Setting up some of the default variables
@@ -17,9 +17,6 @@ SIZE=16
 ISO=""
 FLAG=true
 ERR=false
-
-
-#TODO make these configurable
 DATASTORE="datastore1/"
 VMPATH="/vmfs/volumes/${DATASTORE}"
 ISOPATH="${VMPATH}isos/"
@@ -33,7 +30,7 @@ NETWORKNAME="VM Network"
 #You need to assign more than 1 MB of ram, and of course RAM has to be an integer as well
 #The HDD-size has to be an integer and has to be greater than 0.
 #If the ISO parameter is added, we are checking for an actual .iso extension
-while getopts n:c:i:r:s: option
+while getopts n:c:i:r:s:w: option
 do
         case $option in
                 n)
@@ -56,7 +53,7 @@ do
 						MSG="$MSG | The CPU core number has to be an integer."
 					fi
 					;;
-				i)
+		i)
 					ISO=${OPTARG}
 					if [ ! `echo "$ISO" | egrep "^.*\.(iso)$"` ]; then
 						ERR=true
@@ -65,6 +62,14 @@ do
 						ISO=${ISOPATH}${ISO}
 					fi
 					;;
+		w)
+					NETWORKNAME="${OPTARG}"
+					if [ -z "$NETWORKNAME" ]; then
+						ERR=true
+						MSG="$MSG | Please make sure to enter a network name."
+					fi
+					;;
+					
                 r)
 					RAM=${OPTARG}
 					if [ `echo "$RAM" | egrep "^-?[0-9]+$"` ]; then
@@ -166,12 +171,11 @@ EOF
 #Adding Virtual Machine to VM register - modify your path accordingly!!
 MYVM=`vim-cmd solo/registervm ${VMPATH}${NAME}/${NAME}.vmx`
 
-VNCPORT=`printf %02d $MYVM`
+PADDED=`printf %02d $MYVM`
 
-# add VNC port (TODO - make this configurable)
 cat << EOF >> $NAME/$NAME.vmx
 RemoteDisplay.vnc.enabled = "TRUE"
-RemoteDisplay.vnc.port = "59$VNCPORT"
+RemoteDisplay.vnc.port = "59$PADDED"
 EOF
 
 #Powering up virtual machine:
